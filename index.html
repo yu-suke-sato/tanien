@@ -29,6 +29,7 @@
             gap: 15px;
             align-items: center;
             justify-content: center;
+            max-width: 900px;
         }
         .tool-group {
             display: flex;
@@ -59,10 +60,11 @@
         button.clear-btn { background-color: #95a5a6; }
         button.clear-btn:hover { background-color: #7f8c8d; }
         
-        /* Active state for toggle buttons (optional visual cue) */
+        /* Active state for toggle buttons */
         button:active { transform: translateY(1px); }
 
         .radio-group { display: flex; gap: 10px; font-size: 0.9rem; margin-right: 15px;}
+        .checkbox-group { display: flex; align-items: center; gap: 5px; font-size: 0.95rem; font-weight: bold; color: #27ae60;}
         
         /* Canvas Area */
         .canvas-wrapper {
@@ -80,7 +82,7 @@
             flex-wrap: wrap;
             gap: 15px;
             width: 100%;
-            max-width: 600px;
+            max-width: 750px;
             justify-content: center;
         }
         .val-box {
@@ -99,6 +101,7 @@
         .text-blue { color: #2980b9; }
         .text-purple { color: #8e44ad; }
         .text-orange { color: #e67e22; }
+        .text-green { color: #27ae60; }
 
         /* HTML Fraction helper */
         .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: 0.85em; margin: 0 2px; }
@@ -149,7 +152,27 @@
             </select>
             <button onclick="toggleCosLine()" id="btn-cos">表示/非表示</button>
         </div>
+        
+        <div class="tool-group">
+            <span style="color:#27ae60;">tanθ = </span>
+            <select id="select-tan">
+                <option value="" disabled selected>値を選択</option>
+                <option value="1.7320508">√3</option>
+                <option value="1">1</option>
+                <option value="0.5773503">1 / √3</option>
+                <option value="0">0</option>
+                <option value="-0.5773503">- 1 / √3</option>
+                <option value="-1">-1</option>
+                <option value="-1.7320508">- √3</option>
+            </select>
+            <button onclick="toggleTanLine()" id="btn-tan" style="background-color: #27ae60;">表示/非表示</button>
+        </div>
+
         <button class="clear-btn" onclick="clearLines()">クリア</button>
+
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="check-tan-visual"> tanθの図形と値を表示</label>
+        </div>
     </div>
 
     <div class="canvas-wrapper">
@@ -173,6 +196,11 @@
             <div class="val-label">sin θ (高さ)</div>
             <div class="val-data text-blue" id="disp-sin">0</div>
         </div>
+        <!-- id="panel-tan" を追加してJSで制御できるように変更 -->
+        <div class="val-box" id="panel-tan" style="border-bottom: 3px solid #27ae60;">
+            <div class="val-label">tan θ (傾き)</div>
+            <div class="val-data text-green" id="disp-tan">0</div>
+        </div>
     </div>
 
 <script>
@@ -186,34 +214,43 @@
     const cy = height / 2; 
     const r = 180; 
     
-    // State - Initial Angle set to 0 degrees as requested
+    // State
     let angleRad = 0; 
     let isDragging = false;
     let mode = 'degree';
     let targetSin = null; 
     let targetCos = null; 
+    let targetTan = null; 
 
     // DOM Elements
     const dispAngle = document.getElementById('disp-angle');
     const dispRefAngle = document.getElementById('disp-ref-angle');
     const dispCos = document.getElementById('disp-cos');
     const dispSin = document.getElementById('disp-sin');
+    const dispTan = document.getElementById('disp-tan');
+    const panelTan = document.getElementById('panel-tan'); // tanパネルの要素を取得
     const radios = document.getElementsByName('mode');
+    const checkTanVisual = document.getElementById('check-tan-visual');
 
     // Value Maps
     const exactValues = [
         { val: 0, str: "0", tex: "0" },
         { val: 0.5, str: "1/2", tex: `<div class="frac"><span class="frac-top">1</span><span class="frac-bot">2</span></div>` },
         { val: -0.5, str: "-1/2", tex: `<div class="frac"><span class="frac-top">-1</span><span class="frac-bot">2</span></div>` },
+        { val: 1/Math.sqrt(3), str: "1/√3", tex: `<div class="frac"><span class="frac-top">1</span><span class="frac-bot">√3</span></div>` },
+        { val: -1/Math.sqrt(3), str: "-1/√3", tex: `<div class="frac"><span class="frac-top">-1</span><span class="frac-bot">√3</span></div>` },
         { val: Math.sqrt(2)/2, str: "1/√2", tex: `<div class="frac"><span class="frac-top">1</span><span class="frac-bot">√2</span></div>` },
         { val: -Math.sqrt(2)/2, str: "-1/√2", tex: `<div class="frac"><span class="frac-top">-1</span><span class="frac-bot">√2</span></div>` },
         { val: Math.sqrt(3)/2, str: "√3/2", tex: `<div class="frac"><span class="frac-top">√3</span><span class="frac-bot">2</span></div>` },
         { val: -Math.sqrt(3)/2, str: "-√3/2", tex: `<div class="frac"><span class="frac-top">-√3</span><span class="frac-bot">2</span></div>` },
         { val: 1, str: "1", tex: "1" },
-        { val: -1, str: "-1", tex: "-1" }
+        { val: -1, str: "-1", tex: "-1" },
+        { val: Math.sqrt(3), str: "√3", tex: "√3" },
+        { val: -Math.sqrt(3), str: "-√3", tex: "-√3" }
     ];
 
     function getDisplayValue(num) {
+        if (!isFinite(num)) return { val: num, str: "-", tex: "-" };
         for (let item of exactValues) {
             if (Math.abs(num - item.val) < 1e-6) {
                 return item;
@@ -254,6 +291,11 @@
             if (Math.abs(s) < 1e-10) s = 0;
         }
 
+        let t = Infinity;
+        if (Math.abs(c) > 1e-10) {
+            t = s / c;
+        }
+
         let ref = Math.acos(Math.abs(c)) * 180 / Math.PI;
         if (Math.abs(Math.round(ref) - ref) < 0.1) ref = Math.round(ref);
 
@@ -262,10 +304,12 @@
             deg: displayDeg,
             cos: c,
             sin: s,
+            tan: t,
             refDeg: ref,
             isSnapped: snapped,
             cosObj: getDisplayValue(c),
-            sinObj: getDisplayValue(s)
+            sinObj: getDisplayValue(s),
+            tanObj: getDisplayValue(t)
         };
     }
 
@@ -297,6 +341,11 @@
         const state = getSnappedState(angleRad);
         const px = cx + r * state.cos;
         const py = cy - r * state.sin; 
+
+        // tanの図形表示
+        if (checkTanVisual.checked) {
+            drawTanVisual(state);
+        }
 
         // Triangle
         ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, cy);
@@ -373,6 +422,65 @@
                 });
             }
         }
+        
+        if (targetTan !== null) {
+            const valObj = getDisplayValue(targetTan);
+            ctx.beginPath(); 
+            const leftY = cy - targetTan * (-cx);
+            const rightY = cy - targetTan * (width - cx);
+            ctx.moveTo(0, leftY); 
+            ctx.lineTo(width, rightY);
+            ctx.strokeStyle = '#27ae60'; 
+            ctx.stroke();
+            
+            const labelX = cx + 80;
+            const labelY = cy - targetTan * 80 - 15;
+            drawText(`tan = ${valObj.str}`, labelX, labelY, '#27ae60', 'left');
+
+            const cosT = 1 / Math.sqrt(1 + targetTan*targetTan);
+            const sinT = targetTan * cosT;
+            [1, -1].forEach(sign => {
+                ctx.beginPath(); ctx.arc(cx + sign*cosT*r, cy - sign*sinT*r, 5, 0, 2*Math.PI);
+                ctx.fillStyle = '#e67e22'; ctx.fill();
+            });
+        }
+
+        ctx.restore();
+    }
+
+    function drawTanVisual(state) {
+        if (!isFinite(state.tan) || Math.abs(state.cos) < 1e-5) return;
+
+        const tx = cx + r; 
+        const ty = cy - r * state.tan;
+
+        ctx.save();
+        
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, height);
+        ctx.strokeStyle = '#bdc3c7';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(tx, ty);
+        ctx.strokeStyle = '#27ae60';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.moveTo(tx, cy);
+        ctx.lineTo(tx, ty);
+        ctx.strokeStyle = '#27ae60';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        drawText("tan: " + state.tanObj.str, tx + 10, (cy + ty) / 2, '#27ae60', 'left', 'middle', 13);
+        
         ctx.restore();
     }
 
@@ -385,7 +493,6 @@
         ctx.lineWidth = 3;
         ctx.stroke();
         
-        // Label (Theta)
         const labelAng = state.rad / 2;
         const lx = cx + (arcR + 25) * Math.cos(labelAng);
         const ly = cy - (arcR + 25) * Math.sin(labelAng);
@@ -475,6 +582,9 @@
     }
 
     function updatePanel(state) {
+        // チェックボックスの状態に応じてtanパネルの表示/非表示を切り替え
+        panelTan.style.display = checkTanVisual.checked ? '' : 'none';
+
         let angTxt = mode === 'degree' ? Math.round(state.deg) + '°' : state.rad.toFixed(2);
         if (mode === 'radian' && state.isSnapped) {
              const map = {0:'0', 30:'π/6', 45:'π/4', 60:'π/3', 90:'π/2', 120:'2π/3', 135:'3π/4', 150:'5π/6', 180:'π', 210:'7π/6', 225:'5π/4', 240:'4π/3', 270:'3π/2', 300:'5π/3', 315:'7π/4', 330:'11π/6', 360:'2π'};
@@ -496,6 +606,7 @@
 
         dispCos.innerHTML = state.cosObj.tex;
         dispSin.innerHTML = state.sinObj.tex;
+        dispTan.innerHTML = state.tanObj.tex;
     }
 
     // --- Interaction ---
@@ -526,14 +637,16 @@
     window.addEventListener('touchend', () => isDragging = false);
 
     radios.forEach(r => r.addEventListener('change', e => { mode = e.target.value; update(); }));
+    
+    // チェックボックスの変更時に更新処理を走らせる
+    checkTanVisual.addEventListener('change', update);
 
     // Toggle Logic
     window.toggleSinLine = function() {
         const sel = document.getElementById('select-sin');
         const val = parseFloat(sel.value);
-        if (isNaN(val)) return; // 何も選択されていない場合は無視
+        if (isNaN(val)) return;
 
-        // すでに同じ値が表示されている場合はOFF、そうでなければON
         if (targetSin !== null && Math.abs(targetSin - val) < 1e-6) {
             targetSin = null;
         } else {
@@ -555,14 +668,30 @@
         update();
     };
 
-    window.clearLines = function() {
-        targetSin = null;
-        targetCos = null;
-        document.getElementById('select-sin').selectedIndex = 0;
-        document.getElementById('select-cos').selectedIndex = 0;
+    window.toggleTanLine = function() {
+        const sel = document.getElementById('select-tan');
+        const val = parseFloat(sel.value);
+        if (isNaN(val)) return;
+
+        if (targetTan !== null && Math.abs(targetTan - val) < 1e-6) {
+            targetTan = null;
+        } else {
+            targetTan = val;
+        }
         update();
     };
 
+    window.clearLines = function() {
+        targetSin = null;
+        targetCos = null;
+        targetTan = null;
+        document.getElementById('select-sin').selectedIndex = 0;
+        document.getElementById('select-cos').selectedIndex = 0;
+        document.getElementById('select-tan').selectedIndex = 0;
+        update();
+    };
+
+    // 初期化
     update();
 
 </script>
